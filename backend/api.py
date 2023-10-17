@@ -27,7 +27,8 @@ def query_openai():
     else:
         return 'Content-Type not supported!'
 
-    llm = ChatOpenAI(temperature=0, model_name='gpt-3.5-turbo')
+    llm = ChatOpenAI(temperature=0, model_name='gpt-3.5-turbo', openai_api_key=os.environ.get("OPENAI_SECRET_KEY"))
+
 
     formatted_template = '''{example_query} {example_response}'''
     prompt_tmplt = PromptTemplate(
