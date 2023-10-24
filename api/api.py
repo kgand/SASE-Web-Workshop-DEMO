@@ -1,90 +1,83 @@
-from flask import Flask, render_template, redirect, jsonify, request
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-from dotenv import load_dotenv
 import os
-import ssl
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate, FewShotPromptTemplate
 from langchain.schema import HumanMessage
 from langchain.prompts.example_selector import LengthBasedExampleSelector
 
-openssl_dir, openssl_cafile = os.path.split(      
-    ssl.get_default_verify_paths().openssl_cafile)
-
-
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY")
-CORS(app)
-load_dotenv()  # Load environment variables from .env file
 
+# Your secret key for the Flask application. Protects against cross-site request forgery.
+# You can set this in your environment or .env file.
+app.secret_key = os.environ.get("FLASK_SECRET_KEY")
+
+# Enable Cross-Origin Resource Sharing (CORS) to allow requests from different origins.
+CORS(app)
+
+# Define the route for handling POST requests to query the OpenAI model.
 @app.route("/api/query_openai", methods=["POST"])
 def query_openai():
-    content_type = request.headers.get('Content-Type')
-    prompt = None
-    if (content_type == 'application/json'):
-        json_payload = request.json
-        prompt = json_payload['prompt']
-    else:
-        return 'Content-Type not supported!'
+    # Parse the input data from the request as JSON.
+    data = request.get_json()
+    prompt = data.get('prompt')
 
-    llm = ChatOpenAI(temperature=0, model_name='gpt-3.5-turbo', openai_api_key=os.environ.get("OPENAI_SECRET_KEY"))
+    # Check if the input data is valid.
+    if not prompt:
+        return jsonify({"error": "Invalid input data"}), 400
 
+    # Initialize the OpenAI model with your OpenAI API key.
+    llm = ChatOpenAI(
+        temperature=0,
+        model_name='gpt-3.5-turbo',
+        openai_api_key=os.environ.get("OPENAI_SECRET_KEY")
+    )
 
+    # Create a dynamic prompt using PromptTemplate and FewShotPromptTemplate.
+
+    # Define a template for your prompts, which will be filled in later with examples.
     formatted_template = '''{example_query} {example_response}'''
     prompt_tmplt = PromptTemplate(
         input_variables=["example_query", "example_response"],
         template=formatted_template,
     )
 
+    # Define your example_selector and examples here.
+    # You need to populate the 'examples' variable with your data.
+    examples = [...]
+
+    # Create a prompt selector based on the length of examples.
     prompt_selector = LengthBasedExampleSelector(
         examples=examples,
         example_prompt=prompt_tmplt
     )
 
-    print()
-    print('prompt_selector', prompt_selector)
-    print()
-
-    # example_text_lengths will count the tokens (or word count) of each example (query + response)
-
+    # Create a dynamic prompt using examples and user's input.
     dynamic_prompt = FewShotPromptTemplate(
         example_selector=prompt_selector,
         example_prompt=prompt_tmplt,
-        prefix="""Can you return an array of objects as a JSON formatted string that are geographically relevant to an arbitrary query?
 
-        REQUIREMENTS:
-        - Each object in the array should contain 3 keys: lon, lat, blurb
-        - lon is the longitude of the coords for each match to the query
-        - lat is the latitude of the coords for each match to the query
-        - blurb is the 1-3 sentence answer to the query along with information about the environmental concerns of the city or region in which the coords exist
-        - The array should be max length 3 items
-        - the overall length of the answer should be maximum 500 characters and should be a fully parsable JSON string
-        - if you cannot provide accurate information then please provide your best guess along with a disclaimer
-        """,
-        suffix="Here is the arbitrary query...\n\n{input}\n",
+        # This is the prefix for your prompt. You can add specific instructions here.
+        prefix="""Your prompt prefix goes here...""",
+
+        # This is the suffix for your prompt. You can include additional context here.
+        suffix="Your prompt suffix goes here...\n\n{input}\n",
         input_variables=["input"],
         example_separator="\n\n",
     )
 
-    final_prompt = dynamic_prompt.format(input=f'{prompt}')
+    # Create the final prompt by replacing the {input} placeholder with the user's input.
+    final_prompt = dynamic_prompt.format(input=prompt)
 
-    print()
-    print('final_prompt')
-    print()
-    print(final_prompt)
-    print()
-
+    # Generate a response from the OpenAI model using the final prompt.
     resp = llm([HumanMessage(content=final_prompt)])
-    
-    return {
+
+    # Return the model's response as JSON.
+    return jsonify({
         'statusCode': 200,
         'body': resp.content
-    }
-
-'''test cURL
-curl -XPOST --header "Content-Type: application/json" -d "{\"prompt\":\"What is the greatest country in the history of mankind?\"}" localhost:5000/query_openai 
-curl -XPOST --header "Content-Type: application/json" -d "{\"prompt\":\"What are the hottest cities in America?\"}" localhost:5000/query_openai 
-'''
+    })
 
 if __name__ == "__main__":
+    # Start the Flask application in debug mode.
     app.run(debug=True)
