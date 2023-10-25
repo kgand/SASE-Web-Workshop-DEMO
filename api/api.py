@@ -16,14 +16,14 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY")
 CORS(app)
 
 # Define the route for handling POST requests to query the OpenAI model.
-@app.route("/api/query_openai", methods=["POST"])
+@app.route("/api", methods=["POST"])
 def query_openai():
     # Parse the input data from the request as JSON.
     data = request.get_json()
-    prompt = data.get('prompt')
+    input_text = data.get('input')
 
     # Check if the input data is valid.
-    if not prompt:
+    if not input_text:
         return jsonify({"error": "Invalid input data"}), 400
 
     # Initialize the OpenAI model with your OpenAI API key.
@@ -33,41 +33,15 @@ def query_openai():
         openai_api_key=os.environ.get("OPENAI_SECRET_KEY")
     )
 
-    # Create a dynamic prompt using PromptTemplate and FewShotPromptTemplate.
-
     # Define a template for your prompts, which will be filled in later with examples.
-    formatted_template = '''{example_query} {example_response}'''
+    formatted_template = '''EXAMPLE PROMPT HERE {input}?'''
     prompt_tmplt = PromptTemplate(
-        input_variables=["example_query", "example_response"],
+        input_variables=["input"],
         template=formatted_template,
     )
 
-    # Define your example_selector and examples here.
-    # You need to populate the 'examples' variable with your data.
-    examples = [...]
-
-    # Create a prompt selector based on the length of examples.
-    prompt_selector = LengthBasedExampleSelector(
-        examples=examples,
-        example_prompt=prompt_tmplt
-    )
-
-    # Create a dynamic prompt using examples and user's input.
-    dynamic_prompt = FewShotPromptTemplate(
-        example_selector=prompt_selector,
-        example_prompt=prompt_tmplt,
-
-        # This is the prefix for your prompt. You can add specific instructions here.
-        prefix="""Your prompt prefix goes here...""",
-
-        # This is the suffix for your prompt. You can include additional context here.
-        suffix="Your prompt suffix goes here...\n\n{input}\n",
-        input_variables=["input"],
-        example_separator="\n\n",
-    )
-
     # Create the final prompt by replacing the {input} placeholder with the user's input.
-    final_prompt = dynamic_prompt.format(input=prompt)
+    final_prompt = prompt_tmplt.format(input=input_text)
 
     # Generate a response from the OpenAI model using the final prompt.
     resp = llm([HumanMessage(content=final_prompt)])
